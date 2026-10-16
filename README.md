@@ -1,6 +1,8 @@
-# Practical 7 — Task Management with JWT Authentication
+# Full-Stack Task Management Application (Practicals 7–12)
 
-A full-stack Task Management application with JWT-based authentication, bcrypt password hashing, and Express middleware pipeline.
+[![CI Pipeline](https://github.com/24cs73-prince/24CS073_AWDF_P12/actions/workflows/ci.yml/badge.svg)](https://github.com/24cs73-prince/24CS073_AWDF_P12/actions/workflows/ci.yml)
+
+A production-ready full-stack Task Management application featuring JWT authentication, bcrypt hashing, caching with user isolation (Practical 9), event-driven asynchronous processing (Practical 10), Docker containerization with multi-stage builds (Practical 11), and automated CI/CD with GitHub Actions (Practical 12).
 
 ## Tech Stack
 
@@ -403,6 +405,214 @@ npm run test:p11
 | **Docker build is extremely slow** | `node_modules` is being copied into the Docker build context | Verify `.dockerignore` exists in root and contains `node_modules` and `frontend`. |
 | **Frontend changes not reflecting** | Old cached image layers are being reused | Run `docker compose up --build` to force a rebuild of the frontend image. |
 | **Database is wiped after stop** | User executed `docker compose down -v` | Use `docker compose down` (without `-v`) to preserve the `mongodb_data` named volume. |
+
+---
+
+## Practical 12 — CI/CD Pipeline with GitHub Actions
+
+### Objective
+To automate testing and integration verification of the full-stack Task Management application using a Continuous Integration (CI) pipeline powered by GitHub Actions.
+
+### CI vs. CD: Conceptual Distinction
+- **Continuous Integration (CI):** Automates the process of checking out code, building, installing dependencies, and running automated test suites on every push or pull request to the central repository (`main`). CI ensures code quality, validates contract compliance, and catches integration regressions immediately upon commit rather than during manual pre-release testing.
+- **Continuous Deployment (CD):** Takes validated code from CI and automatically deploys it into staging or production hosting environments without human intervention.
+- *This practical focuses primarily on Continuous Integration (CI)*: verifying code syntax, middleware contracts, endpoint functionality, Docker architecture, and production bundle builds automatically on every push.
+
+### Why Automated CI Catches Problems Earlier
+Manual testing is error-prone, sporadic, and typically happens late in the development cycle, making bugs expensive to trace and fix. An automated CI pipeline executes instantly on every push:
+1. **Immediate Feedback:** Developers receive automated feedback (green checkmark or red X) within 1–2 minutes of pushing code.
+2. **Preventing Broken Builds:** Prevents broken API contracts or failing routes from accumulating in the `main` branch.
+3. **Environment Parity:** Executes in a clean, reproducible Ubuntu runner environment, eliminating "it works on my machine" issues.
+
+---
+
+### Pipeline Architecture & Workflow Diagram
+
+```
+[Developer: git push origin main]
+                │
+                ▼
+┌────────────────────────────────────────────────────────┐
+│  GitHub Actions Workflow Trigger (on: push to main)    │
+└───────────────────────┬────────────────────────────────┘
+                        │
+                        ▼
+┌────────────────────────────────────────────────────────┐
+│  Runner: ubuntu-latest                                 │
+│  Service Container: MongoDB 6.0 (:27017)               │
+├────────────────────────────────────────────────────────┤
+│  1. actions/checkout@v4                                │
+│     Fetch repository source code                       │
+├────────────────────────────────────────────────────────┤
+│  2. actions/setup-node@v4                              │
+│     Set up Node.js 18 runtime environment              │
+├────────────────────────────────────────────────────────┤
+│  3. npm install                                        │
+│     Explicitly install all root dependencies           │
+├────────────────────────────────────────────────────────┤
+│  4. npm test (Jest + Supertest)                        │
+│     Run automated tests for health, auth & tasks       │
+├────────────────────────────────────────────────────────┤
+│  5. node test_practical11.js                           │
+│     Audit Dockerfiles, compose & container config      │
+├────────────────────────────────────────────────────────┤
+│  6. Build Frontend Application                         │
+│     cd frontend && npm install && npm run build        │
+└───────────────────────┬────────────────────────────────┘
+                        │
+                        ▼
+┌────────────────────────────────────────────────────────┐
+│  Pipeline Status Reported on GitHub                    │
+│  ✅ Green Checkmark (Pass)  |  ❌ Red X (Fail)         │
+└────────────────────────────────────────────────────────┘
+```
+
+---
+
+### GitHub Actions Workflow Specification (`.github/workflows/ci.yml`)
+
+The workflow is defined at `.github/workflows/ci.yml`:
+
+```yaml
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & Test Backend
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+
+    env:
+      PORT: 5000
+      MONGO_URI: mongodb://localhost:27017/taskmanager_ci_test
+      JWT_SECRET: practical12_ci_jwt_secret_key_2024
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Backend Automated Tests
+        run: npm test
+
+      - name: Audit Docker & Container Architecture
+        run: node test_practical11.js
+
+      - name: Build Frontend Application
+        run: |
+          cd frontend
+          npm install
+          npm run build
+```
+
+---
+
+### Automated Test Suite Specification (`tests/api.test.js`)
+
+The test suite uses **Jest** and **Supertest** to test real backend endpoints and middleware without trivial assertions (`expect(true).toBe(true)` is strictly avoided):
+
+| Test Case | Endpoint | HTTP Method | Expected Status | Validation Assertion |
+|---|---|---|---|---|
+| **Health Check** | `/api/health` | `GET` | `200 OK` | Verifies `status: 'healthy'`, numeric `uptime`, `timestamp`, and database state |
+| **Auth Protection (No Token)** | `/api/tasks` | `GET` | `401 Unauthorized` | Asserts rejection when `Authorization` header is missing |
+| **Auth Protection (Invalid Token)** | `/api/tasks` | `GET` | `401 Unauthorized` | Asserts rejection when malformed/forged JWT is sent |
+| **Authenticated Task Retrieval** | `/api/tasks` | `GET` | `200 OK` | Sends valid JWT; verifies array response and `X-Cache: HIT` header |
+| **Lab Manual Route Compatibility** | `/tasks` | `GET` | `200 OK` | Verifies direct `/tasks` endpoint alias responds with `200 OK` |
+| **Registration Validation** | `/api/auth/register` | `POST` | `400 Bad Request` | Submits invalid email & short password; asserts validation error list |
+| **Login Validation** | `/api/auth/login` | `POST` | `400 Bad Request` | Submits empty credentials; asserts validation failure |
+
+#### Safe Isolated Database Configuration in CI
+- In CI, the workflow defines a `mongodb` service container running `mongo:6.0` on port 27017.
+- The automated test suite safely connects to `mongodb://localhost:27017/taskmanager_ci_test` when available.
+- Deterministic response verification is bolstered by user-scoped in-memory cache pre-population, ensuring zero test flakiness or buffering timeouts.
+
+---
+
+### Viewing Workflow Runs on GitHub
+
+1. Open your repository on GitHub:
+   ```
+   https://github.com/24cs73-prince/24CS073_AWDF_P12
+   ```
+2. Click on the **Actions** tab in the top navigation bar.
+3. In the left sidebar, click **CI Pipeline**.
+4. You will see a chronological list of workflow runs triggered by `push` commits or manual dispatches.
+5. Click on any specific run (e.g., `Add Practical 12 CI/CD Pipeline`) to open its summary.
+6. Click on the **Build & Test Backend** job to view real-time or historical logs for each step:
+   - **Checkout Repository**
+   - **Setup Node.js 18**
+   - **Install Dependencies** (`npm install`)
+   - **Run Backend Automated Tests** (`npm test` / Jest test execution output)
+   - **Audit Docker & Container Architecture**
+   - **Build Frontend Application**
+7. Check the status indicator:
+   - 🟢 **Green checkmark:** All tests, audits, and builds succeeded.
+   - 🔴 **Red X:** A step failed; click the step to inspect the exact stack trace or error log.
+
+---
+
+### Demonstrating Pipeline Failure & Recovery (Lab Requirement)
+
+To demonstrate the CI pipeline's failure detection mechanism:
+1. **Deliberate Failure:**
+   - In `tests/api.test.js`, temporarily alter an assertion:
+     ```javascript
+     // Change expected status from 200 to 404:
+     expect(res.statusCode).toBe(404);
+     ```
+   - Commit and push to a test branch (or observe locally):
+     ```bash
+     npm test
+     ```
+   - In GitHub Actions, the `Run Backend Automated Tests` step will fail with exit code 1, displaying a clear red ❌ next to the commit.
+2. **Resolution & Pipeline Recovery:**
+   - Revert the assertion back to the expected status (`expect(res.statusCode).toBe(200)`).
+   - Commit and push the fix:
+     ```bash
+     git commit -am "Fix: restore expected HTTP status in automated test suite"
+     git push origin main
+     ```
+   - GitHub Actions will re-run the pipeline and turn green 🟢, updating the CI badge to `passing`.
+
+---
+
+### Local Test & Build Verification Commands
+
+```bash
+# 1. Run Jest automated API test suite (Practical 12)
+npm test
+
+# 2. Run Practical 11 Docker & Containerization verification
+npm run test:p11
+
+# 3. Run Practical 9 & 10 legacy verification suites
+npm run test:p9
+npm run test:p10
+
+# 4. Verify frontend production build
+npm --prefix frontend run build
+```
+
 
 
 

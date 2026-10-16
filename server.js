@@ -43,6 +43,9 @@ app.get('/api/health', (req, res) => {
 // ── Routes ───────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
+// Direct aliases to support both /tasks and /api/tasks
+app.use('/auth', authRoutes);
+app.use('/tasks', taskRoutes);
 
 // Catch-all: serve index.html for any non-API route
 app.get('*', (req, res) => {
@@ -59,15 +62,19 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://mongodb:27017/taskmanager';
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => {
-    console.log('MongoDB connected successfully');
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on http://0.0.0.0:${PORT} (accessible at http://localhost:${PORT})`);
+if (require.main === module) {
+  mongoose
+    .connect(MONGO_URI)
+    .then(() => {
+      console.log('MongoDB connected successfully');
+      app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on http://0.0.0.0:${PORT} (accessible at http://localhost:${PORT})`);
+      });
+    })
+    .catch((err) => {
+      console.error('MongoDB connection error:', err.message);
+      process.exit(1);
     });
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err.message);
-    process.exit(1);
-  });
+}
+
+module.exports = app;

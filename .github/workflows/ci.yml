@@ -1,65 +1,49 @@
-name: Deploy to GitHub Pages
+name: CI Pipeline
 
 on:
   push:
     branches:
       - main
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-and-test:
+    name: Build & Test Backend
     runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+
+    env:
+      PORT: 5000
+      MONGO_URI: mongodb://localhost:27017/taskmanager_ci_test
+      JWT_SECRET: practical12_ci_jwt_secret_key_2024
+      NODE_ENV: test
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 18
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: 'npm'
 
       - name: Install Dependencies
         run: npm install
 
-      - name: Verify Project Structure
+      - name: Run Backend Automated Tests
+        run: npm test
+
+      - name: Audit Docker & Container Architecture
+        run: node test_practical11.js
+
+      - name: Build Frontend Application
         run: |
-          echo "Verifying key files..."
-          test -f server.js && echo "✅ server.js"
-          test -f models/User.js && echo "✅ models/User.js"
-          test -f models/Task.js && echo "✅ models/Task.js"
-          test -f middleware/auth.js && echo "✅ middleware/auth.js"
-          test -f middleware/validate.js && echo "✅ middleware/validate.js"
-          test -f routes/auth.js && echo "✅ routes/auth.js"
-          test -f routes/tasks.js && echo "✅ routes/tasks.js"
-          test -f events.js && echo "✅ events.js"
-          test -f listeners.js && echo "✅ listeners.js"
-          test -f public/index.html && echo "✅ public/index.html"
-          echo "All files verified!"
-
-      - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./public
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    needs: build
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          cd frontend
+          npm install
+          npm run build
