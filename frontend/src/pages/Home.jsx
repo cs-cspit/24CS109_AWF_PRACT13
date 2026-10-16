@@ -19,6 +19,12 @@ function Home() {
   const [priority, setPriority] = useState('medium');
   const [filter, setFilter] = useState('all');
 
+  // Practical 13: AI Assistant states
+  const [draftId, setDraftId] = useState(() => 'draft_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now());
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiStatus, setAiStatus] = useState(null); // { type: 'success' | 'fallback' | 'rate-limit' | 'error', message: string }
+  const [isAiGenerated, setIsAiGenerated] = useState(false);
+
   // Auth form state
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
   const [authName, setAuthName] = useState('');
@@ -108,6 +114,96 @@ function Home() {
     setTasks([]);
   };
 
+  // Practical 13: Generate AI task description via backend Gemini endpoint
+  const handleGenerateDescription = async () => {
+    if (!title.trim()) {
+      setAiStatus({
+        type: 'error',
+        message: 'Please enter a task title first to generate an AI description.',
+      });
+      return;
+    }
+
+    // Overwrite safeguard: alert user if they have already typed a custom description
+    if (description.trim()) {
+      const confirmReplace = window.confirm(
+        'You have already entered a description. Replace it with the AI-generated suggestion?'
+      );
+      if (!confirmReplace) return;
+    }
+
+    setAiLoading(true);
+    setAiStatus(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/ai/generate-description`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: title.trim(),
+          draftId,
+        }),
+      });
+
+      if (res.status === 401) {
+        handleLogout();
+        setError('Session expired. Please log in again.');
+        return;
+      }
+
+      if (res.status === 429) {
+        const rateData = await res.json();
+        setAiStatus({
+          type: 'rate-limit',
+          message:
+            rateData.error ||
+            'Rate limit exceeded. You can only generate one AI description per task every 60 seconds.',
+        });
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAiStatus({
+          type: 'error',
+          message: data.error || 'Failed to generate AI description.',
+        });
+        return;
+      }
+
+      if (data.fallback) {
+        setAiStatus({
+          type: 'fallback',
+          message:
+            data.message ||
+            'AI description generation is temporarily unavailable. You can write the description manually.',
+        });
+        return;
+      }
+
+      if (data.description) {
+        setDescription(data.description);
+        setIsAiGenerated(true);
+        setAiStatus({
+          type: 'success',
+          message: 'AI description generated! Review and edit before saving.',
+        });
+      }
+    } catch (err) {
+      setAiStatus({
+        type: 'fallback',
+        message:
+          'Could not reach AI service. Please verify your connection or write the description manually.',
+      });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   // Create Task in MongoDB via backend API
   const handleCreateTask = async (e) => {
     e.preventDefault();
@@ -129,6 +225,9 @@ function Home() {
         setTitle('');
         setDescription('');
         setPriority('medium');
+        setIsAiGenerated(false);
+        setAiStatus(null);
+        setDraftId('draft_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now());
       } else {
         setError(data.error || 'Failed to create task');
       }
@@ -304,14 +403,55 @@ function Home() {
               />
             </div>
             <div className="form-group">
-              <label>Description</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                <label style={{ margin: 0 }}>Description</label>
+                <button
+                  type="button"
+                  className="btn btn-ai"
+                  onClick={handleGenerateDescription}
+                  disabled={aiLoading || !title.trim()}
+                  title={!title.trim() ? 'Enter a task title first' : 'Generate description using Google Gemini'}
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '0.25rem 0.65rem',
+                    gap: '0.35rem',
+                  }}
+                >
+                  {aiLoading ? (
+                    <>
+                      <span className="spinner-mini" /> Generating description...
+                    </>
+                  ) : (
+                    <>
+                      ✨ Generate Description
+                    </>
+                  )}
+                </button>
+              </div>
               <textarea
                 className="input-field"
                 rows="3"
-                placeholder="Enter task description..."
+                placeholder="Enter task description or use AI generation..."
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                }}
               />
+
+              {/* Exact required disclaimer when description is populated/generated by AI */}
+              {isAiGenerated && (
+                <div className="ai-disclaimer">
+                  <span>🤖</span> AI-generated suggestion. Review and edit before saving.
+                </div>
+              )}
+
+              {/* Non-blocking feedback for success, rate limiting, fallback, or error */}
+              {aiStatus && (
+                <div className={`ai-alert ai-alert-${aiStatus.type}`}>
+                  <span>{aiStatus.type === 'fallback' ? 'ℹ️' : aiStatus.type === 'rate-limit' ? '⏳' : aiStatus.type === 'error' ? '⚠️' : '✅'}</span>
+                  <span>{aiStatus.message}</span>
+                </div>
+              )}
             </div>
             <div className="form-group">
               <label>Priority</label>

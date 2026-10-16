@@ -613,6 +613,181 @@ npm run test:p10
 npm --prefix frontend run build
 ```
 
+---
 
+# Practical 13: AI API Integration into a Web Application
 
+## 1. Objective and Overview
 
+The objective of Practical 13 is to securely integrate an external AI service (**Google Gemini API**) into the Task Management full-stack application to automatically generate concise, actionable task descriptions, handle service failures gracefully, enforce strict credential protection, and adhere to Responsible AI principles.
+
+### Architecture Workflow
+
+```
+[ React Frontend ]
+       │
+       │  1. User enters task title & clicks '✨ Generate Description'
+       │  2. Frontend sends { title, draftId } with JWT Bearer token
+       ▼
+[ Express Backend: POST /api/ai/generate-description ]
+       │
+       │  3. Server validates input & verifies JWT
+       │  4. Enforces rate-limiting (1 request per task/draft per 60s)
+       │  5. Reads GEMINI_API_KEY strictly from backend .env
+       │  6. Invokes Google Gemini API with 8-second timeout & system instructions
+       ▼
+[ Google Gemini API (gemini-2.0-flash) ]
+       │
+       │  7. Returns concise 1-2 sentence actionable description
+       ▼
+[ Express Backend ]
+       │
+       │  8. Parses response into { description, fallback: false }
+       │     (On failure/timeout: catches error and returns { description: '', fallback: true, message: '...' })
+       ▼
+[ React Frontend ]
+       │
+       │  9. Populates editable textarea with suggestion
+       │ 10. Displays mandatory disclaimer: "AI-generated suggestion. Review and edit before saving."
+       │ 11. User reviews, edits, and saves task to MongoDB via existing task creation flow
+```
+
+---
+
+## 2. Technology & SDK
+
+- **AI Provider**: Google Gemini API
+- **Model**: `gemini-2.0-flash` (or `gemini-1.5-flash`)
+- **Backend SDK**: Official `@google/genai`
+- **Backend Framework**: Express.js with Node.js
+- **Frontend Framework**: React 18 + Vite (Vanilla CSS design system)
+- **Security**: JWT Bearer token authentication + Server-side `.env` storage
+
+---
+
+## 3. Backend AI Endpoint Specification
+
+### `POST /api/ai/generate-description` (Alias: `POST /ai/generate-description`)
+
+- **Authentication**: Required (`Authorization: Bearer <jwt_token>`)
+- **Rate Limit**: 1 request per task/draft per 60 seconds (HTTP 429)
+- **Timeout**: 8 seconds
+
+#### Successful Request & Response (HTTP 200)
+
+**Request**:
+```json
+{
+  "title": "Prepare for AWS Certified AI Practitioner exam",
+  "draftId": "draft_9a8bc12_1729081234"
+}
+```
+
+**Response**:
+```json
+{
+  "description": "Review the official exam domains, study core machine learning concepts on AWS, and complete timed practice test questions.",
+  "fallback": false
+}
+```
+
+#### Graceful Degradation / Fallback Response (HTTP 200)
+
+*Returned when `GEMINI_API_KEY` is missing, quota is exceeded, call times out, or AI provider is unreachable.*
+
+**Response**:
+```json
+{
+  "description": "",
+  "fallback": true,
+  "message": "AI description generation is temporarily unavailable. You can write the description manually."
+}
+```
+
+#### Input Validation Error (HTTP 400 Bad Request)
+
+**Response**:
+```json
+{
+  "error": "Task title is required and cannot be empty."
+}
+```
+
+#### Rate Limit Exceeded (HTTP 429 Too Many Requests)
+
+**Response**:
+```json
+{
+  "error": "Rate limit exceeded. You can only generate one AI description per task every 60 seconds.",
+  "retryAfter": 52
+}
+```
+
+---
+
+## 4. Security & Responsible AI Considerations
+
+1. **Backend Credential Isolation**:
+   - `GEMINI_API_KEY` is loaded strictly server-side using `dotenv` in `routes/ai.js`.
+   - Never exposed to the React frontend, bundled Vite environment variables (`VITE_*`), browser network tabs, or client logs.
+   - `.env` is excluded from Git via `.gitignore`.
+2. **Data Minimization**:
+   - Only the sanitized task title and minimal context are transmitted to the Gemini API.
+   - User passwords, tokens, email addresses, and personal database records are never sent to external AI providers.
+3. **Graceful Degradation**:
+   - If the AI service fails or times out, the core application remains 100% operational. The user receives a polite, non-blocking notification and can enter the description manually.
+4. **Human-in-the-Loop & Mandatory Disclaimer**:
+   - The AI output is placed into an editable form field, never directly saved into the database without user review.
+   - A visible disclaimer is always displayed: *"AI-generated suggestion. Review and edit before saving."*
+5. **Safe Diagnostic Logging**:
+   - The backend logs only sanitized error messages (e.g. `[AI Service Fallback Triggered] Error: ...`) and never logs API keys, secret headers, or confidential prompts.
+
+---
+
+## 5. Local Setup & Testing
+
+### 1. Configure Gemini API Key
+In the backend `.env` file (create if needed, using `.env.example` as a template):
+```env
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/taskmanager
+JWT_SECRET=practical7_jwt_secret_key_2024
+GEMINI_API_KEY=your_actual_gemini_api_key_here
+GEMINI_MODEL=gemini-2.0-flash
+```
+
+### 2. Run Automated Test Suites
+All automated tests mock the Gemini SDK, so no paid API calls or live API keys are consumed during CI:
+```bash
+# Run both Practical 12 and Practical 13 Jest test suites (20 tests)
+npm test
+
+# Run Docker & Containerization verification
+node test_practical11.js
+
+# Build production frontend bundle
+npm --prefix frontend run build
+```
+
+### 3. Testing Graceful Degradation Locally
+To verify graceful degradation:
+1. Temporarily change `GEMINI_API_KEY=your_gemini_api_key_here` (or remove it) in `.env`.
+2. In the React task form, enter a title and click **✨ Generate Description**.
+3. Notice that the application does not crash. It displays:
+   `ℹ️ AI description generation is temporarily unavailable. You can write the description manually.`
+4. The user can still type a manual description and click **Add Task to Database**, proving fault tolerance.
+
+---
+
+## 6. Viva Preparation Questions & Answers
+
+1. **Why must the AI API key remain on the backend?**
+   If called directly from React, the API key is exposed in browser source code, network inspection tabs, and client bundles. Anyone can steal the key, exhaust quotas, or incur financial costs.
+2. **How does the React frontend communicate with Express and Gemini?**
+   React sends an authenticated HTTP request (`POST /api/ai/generate-description`) with the task title to the Express backend. The Express backend attaches the server-side API key, invokes Gemini, processes the response, and returns only the generated text to React.
+3. **What is graceful degradation?**
+   Designing a system so that if a non-essential third-party service fails (e.g. Gemini downtime or quota limit), the core application continues to function normally (manual task entry).
+4. **Why is data minimization important in AI integration?**
+   To protect user privacy, prevent intellectual property leaks, and comply with data protection regulations (e.g., GDPR), only the minimal necessary context (the task title) should ever be sent to third-party AI models.
+5. **How does the rate limiter protect the application?**
+   It limits requests to 1 generation per task/draft per minute per user, preventing automated scripts or accidental spamming from exhausting the provider quota or triggering excessive billing. The rate limit applies to both successful and failed attempts to prevent cascading flood attacks during an upstream outage.

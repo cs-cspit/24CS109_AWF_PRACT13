@@ -9,6 +9,7 @@ require('./listeners');
 
 const authRoutes = require('./routes/auth');
 const taskRoutes = require('./routes/tasks');
+const aiRoutes = require('./routes/ai');
 
 const app = express();
 
@@ -43,9 +44,11 @@ app.get('/api/health', (req, res) => {
 // ── Routes ───────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
-// Direct aliases to support both /tasks and /api/tasks
+app.use('/api/ai', aiRoutes);
+// Direct aliases to support both /tasks and /api/tasks, /ai and /api/ai
 app.use('/auth', authRoutes);
 app.use('/tasks', taskRoutes);
+app.use('/ai', aiRoutes);
 
 // Catch-all: serve index.html for any non-API route
 app.get('*', (req, res) => {
