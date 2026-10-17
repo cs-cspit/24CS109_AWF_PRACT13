@@ -1,7 +1,7 @@
 {
-  "name": "practical-7-task-management",
+  "name": "practical-13-task-management",
   "version": "1.0.0",
-  "description": "Task Management Application with JWT Authentication and Middleware Pipeline",
+  "description": "Task Management Application with JWT Authentication and Google Gemini AI Integration",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

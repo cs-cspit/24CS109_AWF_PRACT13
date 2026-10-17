@@ -1,8 +1,8 @@
-# Full-Stack Task Management Application (Practicals 7–12)
+# Full-Stack Task Management Application (Practical 13: AI API Integration)
 
-[![CI Pipeline](https://github.com/24cs73-prince/24CS073_AWDF_P12/actions/workflows/ci.yml/badge.svg)](https://github.com/24cs73-prince/24CS073_AWDF_P12/actions/workflows/ci.yml)
+[![CI Pipeline](https://github.com/24cs73-prince/24CS073_AWDF_P13/actions/workflows/ci.yml/badge.svg)](https://github.com/24cs73-prince/24CS073_AWDF_P13/actions/workflows/ci.yml)
 
-A production-ready full-stack Task Management application featuring JWT authentication, bcrypt hashing, caching with user isolation (Practical 9), event-driven asynchronous processing (Practical 10), Docker containerization with multi-stage builds (Practical 11), and automated CI/CD with GitHub Actions (Practical 12).
+A production-ready full-stack Task Management application featuring JWT authentication, bcrypt hashing, caching with user isolation (Practical 9), event-driven asynchronous processing (Practical 10), Docker containerization with multi-stage builds (Practical 11), automated CI/CD with GitHub Actions (Practical 12), and AI API Integration using Google Gemini (Practical 13).
 
 ## Tech Stack
 
@@ -10,7 +10,8 @@ A production-ready full-stack Task Management application featuring JWT authenti
 - **Database:** MongoDB
 - **Auth:** bcryptjs, jsonwebtoken
 - **Validation:** express-validator
-- **Frontend:** HTML, CSS, JavaScript
+- **Frontend:** React 18, Vite, Vanilla CSS
+- **AI Integration:** Google Gemini API (`@google/genai`)
 
 ## Features
 
@@ -22,13 +23,14 @@ A production-ready full-stack Task Management application featuring JWT authenti
 - `/me` endpoint for current user details
 - 401 handling — frontend redirects to login on expired token
 - Logout clears token from client
+- AI-powered task description generation with Google Gemini, rate-limiting, and graceful degradation fallback (Practical 13)
 
 ## Setup
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/24cs73-prince/24CS073_AWDF_P7.git
-cd 24CS073_AWDF_P7
+git clone https://github.com/24cs73-prince/24CS073_AWDF_P13.git
+cd 24CS073_AWDF_P13
 
 # 2. Install dependencies
 npm install
@@ -552,7 +554,7 @@ The test suite uses **Jest** and **Supertest** to test real backend endpoints an
 
 1. Open your repository on GitHub:
    ```
-   https://github.com/24cs73-prince/24CS073_AWDF_P12
+   https://github.com/24cs73-prince/24CS073_AWDF_P13
    ```
 2. Click on the **Actions** tab in the top navigation bar.
 3. In the left sidebar, click **CI Pipeline**.
