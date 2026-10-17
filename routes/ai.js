@@ -128,7 +128,7 @@ router.post(
     let timerId;
     try {
       const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-      const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+      const model = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 
       // Enforce 8-second timeout on third-party AI call (configurable for deterministic testing)
       const TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 8000;
@@ -147,7 +147,7 @@ router.post(
         config: {
           systemInstruction:
             'You are a task management assistant. Generate a concise, actionable, 1-2 sentence task description (under 200 characters) explaining what needs to be done. Do not include markdown, quotes, bullet points, introductory phrases, or conversational filler. Return only the description text.',
-          maxOutputTokens: 100,
+          maxOutputTokens: 1000,
           temperature: 0.7,
         },
       });

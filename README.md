@@ -638,7 +638,7 @@ The objective of Practical 13 is to securely integrate an external AI service (*
        │  5. Reads GEMINI_API_KEY strictly from backend .env
        │  6. Invokes Google Gemini API with 8-second timeout & system instructions
        ▼
-[ Google Gemini API (gemini-2.0-flash) ]
+[ Google Gemini API (gemini-flash-latest) ]
        │
        │  7. Returns concise 1-2 sentence actionable description
        ▼
@@ -659,7 +659,7 @@ The objective of Practical 13 is to securely integrate an external AI service (*
 ## 2. Technology & SDK
 
 - **AI Provider**: Google Gemini API
-- **Model**: `gemini-2.0-flash` (or `gemini-1.5-flash`)
+- **Model**: `gemini-flash-latest` (or `gemini-3.8-flash`)
 - **Backend SDK**: Official `@google/genai`
 - **Backend Framework**: Express.js with Node.js
 - **Frontend Framework**: React 18 + Vite (Vanilla CSS design system)
@@ -755,7 +755,7 @@ PORT=5000
 MONGO_URI=mongodb://localhost:27017/taskmanager
 JWT_SECRET=practical7_jwt_secret_key_2024
 GEMINI_API_KEY=your_actual_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-flash-latest
 ```
 
 ### 2. Run Automated Test Suites
